@@ -1,4 +1,5 @@
 <?php
+
 class RCallerSettingsPageRenderer
 {
     const SETTINGS_FORM_USERNAME = "rcaller_username";
@@ -36,7 +37,7 @@ class RCallerSettingsPageRenderer
 
     public static function checkCredentials($userName, $password)
     {
-        $response = RCallerSender::sendPingToRCaller($userName, $password);
+        $response = RCallerSender::checkRCallerCredentials($userName, $password);
         return self::processResponse($response);
     }
 
@@ -50,6 +51,8 @@ class RCallerSettingsPageRenderer
             $checkCredentialsResult = "success";
         } else if ($httpCode === 401) {
             $checkCredentialsResult = "bad credentials";
+        } else if ($httpCode == 403) {
+            $checkCredentialsResult = "You have negative balance, so the requests to rcaller will not be sent";
         } else {
             $checkCredentialsResult = "unknown error";
         }
@@ -119,6 +122,7 @@ class RCallerSettingsPageRenderer
     {
         return $_POST["checkCredentials"];
     }
+
     /**
      * @return mixed
      */
@@ -126,6 +130,7 @@ class RCallerSettingsPageRenderer
     {
         return $_POST["save"];
     }
+
     /**
      * @return bool
      */
@@ -133,6 +138,7 @@ class RCallerSettingsPageRenderer
     {
         return $this->isCheckCredentialsRequest() || $this->isSaveSettingsRequest();
     }
+
     /**
      * @return bool
      */
@@ -140,12 +146,14 @@ class RCallerSettingsPageRenderer
     {
         return $_SERVER['REQUEST_METHOD'] === 'POST';
     }
+
     function doCheckCredentials()
     {
         $userName = $_POST[self::SETTINGS_FORM_USERNAME];
         $password = $_POST[self::SETTINGS_FORM_PASSWORD];
         return RCallerSettingsPageRenderer::checkCredentials($userName, $password);
     }
+
     function doSaveSettings()
     {
         $userName = $_POST[self::SETTINGS_FORM_USERNAME];

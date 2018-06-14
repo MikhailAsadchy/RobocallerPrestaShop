@@ -63,7 +63,9 @@ class rcaller extends Module
         $userName = Configuration::get(RCallerConstants::USERNAME_CONFIG_KEY);
         $password = Configuration::get(RCallerConstants::PASSWORD_CONFIG_KEY);
 
-        RCallerSender::sendOrderToRCallerInternal($data, $userName, $password);
+        $httpCode = RCallerSender::sendOrderToRCaller($data, $userName, $password);
+
+        $this->processResponseCode($httpCode);
     }
 
     public function uninstall()
@@ -129,5 +131,15 @@ class rcaller extends Module
 
         return $username === self::CONFIG_PLACE_HOLDER || $password === self::CONFIG_PLACE_HOLDER;
     }
+
+    private function processResponseCode($httpCode)
+    {
+        if ($httpCode == 403) {
+            $message = "You have negative balance, so the request to RCaller was not sent";
+            PrestaShopLogger::addLog($message, 3);
+            Tools::error_log($message);
+        }
+    }
+
 
 }

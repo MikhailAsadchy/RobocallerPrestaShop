@@ -7,7 +7,7 @@ class RCallerSender
      * @param $password
      * @return int
      */
-    public static function sendOrderToRCallerInternal($data, $username, $password)
+    public static function sendOrderToRCaller($data, $username, $password)
     {
         $rcallerConfig = parse_ini_file("rcaller-config.ini");
         $curl = curl_init($rcallerConfig["rcaller.url"]);
@@ -29,7 +29,7 @@ class RCallerSender
      * @param $password
      * @return int
      */
-    public static function sendPingToRCaller($username, $password)
+    public static function checkRCallerCredentials($username, $password)
     {
         $rcallerConfig = parse_ini_file("rcaller-config.ini");
         $curl = curl_init($rcallerConfig["rcaller.ping.url"]);
