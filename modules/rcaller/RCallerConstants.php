@@ -1,5 +1,5 @@
 <?php
-
+namespace rcaller;
 class RCallerConstants
 {
     const PLUGIN_NAME = 'rcaller';

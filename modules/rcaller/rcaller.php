@@ -1,8 +1,15 @@
 <?php
 
+use rcaller\adapter\PrestaShopAdaptedIOC;
+use rcaller\adapter\RCallerAdapterImport;
+use rcaller\lib\constants\RCallerConstants;
+use rcaller\lib\RCallerImport;
+
 include_once _PS_MODULE_DIR_ . "rcaller/RCallerConstants.php";
-include_once _PS_MODULE_DIR_ . "rcaller/RCallerSettingsPageRenderer.php";
-include_once _PS_MODULE_DIR_ . "rcaller/client/RCallerSender.php";
+include_once _PS_MODULE_DIR_ . "rcaller/lib/RCallerImport.php";
+include_once _PS_MODULE_DIR_ . "rcaller/adapter/RCallerAdapterImport.php";
+RCallerImport::importRCallerLib();
+RCallerAdapterImport::importRCallerLib();
 
 if (!defined('_PS_VERSION_')) {
     exit;
@@ -11,9 +18,6 @@ if (!defined('_PS_VERSION_')) {
 
 class rcaller extends Module
 {
-
-    const CONFIG_PLACE_HOLDER = "changeMe";
-
     const PLACE_ORDER_HOOK_NAME = "actionObjectOrderHistoryAddAfter";
 
     public function __construct()
@@ -33,71 +37,71 @@ class rcaller extends Module
 
     public function install()
     {
+        $pluginManager = PrestaShopAdaptedIOC::getIOC()->getPluginManager();
+        $pluginManager->addOptions();
+
         return parent::install()
-            && $this->registerHook(self::PLACE_ORDER_HOOK_NAME)
-            && Configuration::updateValue(RCallerConstants::USERNAME_CONFIG_KEY, self::CONFIG_PLACE_HOLDER)
-            && Configuration::updateValue(RCallerConstants::PASSWORD_CONFIG_KEY, self::CONFIG_PLACE_HOLDER);
+            && $this->subscribePlaceOrderEvent();
     }
 
+    /**
+     * Handles place order event
+     * @param $args
+     * @throws PrestaShopDatabaseException
+     * @throws PrestaShopException
+     */
     public function hookActionObjectOrderHistoryAddAfter($args)
     {
         $orderId = $args["object"]->id_order;
-
         $order = new Order($orderId);
-
         $address = $this->resolveAddress($order);
 
-        $currency = new Currency($order->id_currency);
-
+        $totals = $order->getOrdersTotalPaid();
+        $entries = $order->getProducts();
+        $addressLine = $address->address1;
+        $phone = $address->phone;
         $customerName = $this->getCustomerName($address);
-        $entriesAsString = $this->getEntriesAsString($order);
-        $data = array(
-            'price' => $order->getOrdersTotalPaid(),
-            'entries' => $entriesAsString,
-            'customerAddress' => $address->address1,
-            'customerPhone' => $address->phone,
-            'customerName' => $customerName,
-            'priceCurrency' => $currency->iso_code,
-            'channel' => "PrestaShop");
+        $currency = (new Currency($order->id_currency))->iso_code;
 
-        $userName = Configuration::get(RCallerConstants::USERNAME_CONFIG_KEY);
-        $password = Configuration::get(RCallerConstants::PASSWORD_CONFIG_KEY);
-
-        $httpCode = RCallerSender::sendOrderToRCaller($data, $userName, $password);
-
-        $this->processResponseCode($httpCode);
+        $ioc = PrestaShopAdaptedIOC::getIOC();
+        $rCallerClient = $ioc->getRCallerClient();
+        $rCallerClient->sendOrderToRCaller($totals, $entries, $addressLine, $phone, $customerName, $currency);
     }
 
     public function uninstall()
     {
         $this->unregisterHook(self::PLACE_ORDER_HOOK_NAME);
-        Configuration::deleteByName(RCallerConstants::USERNAME_CONFIG_KEY);
-        Configuration::deleteByName(RCallerConstants::PASSWORD_CONFIG_KEY);
+
+        $ioc = PrestaShopAdaptedIOC::getIOC();
+        $pluginManager = $ioc->getPluginManager();
+        $pluginManager->removeOptions();
 
         return parent::uninstall();
     }
 
+    /**
+     * @return mixed - renders Settings page
+     */
     public function getContent()
     {
-        $renderer = new RCallerSettingsPageRenderer();
-        return $renderer->render_settings_page();
+        return PrestaShopAdaptedIOC::getIOC()->getRCallerSettingsPageRenderer()->getDefaultView();
     }
 
     /**
      * @param $order
      * @return Address
-     * @throws Exception
      */
     private function resolveAddress($order)
     {
+        $address = null;
         if ($order->id_address_delivery != null) {
-
             $address = new Address($order->id_address_delivery);
         } else if ($order->id_address_invoice) {
             $address = new Address($order->id_address_invoice);
-
         } else {
-            throw new Exception("Can not resolve address from order with id=" + $order->id);
+            $ioc = PrestaShopAdaptedIOC::getIOC();
+            $logger = $ioc->getLogger();
+            $logger->log("error", "Can not resolve address from order with id=" . $order->id);
         }
 
         return $address;
@@ -108,37 +112,25 @@ class rcaller extends Module
         return $address->firstname . " " . $address->lastname;
     }
 
-    private function getEntriesAsString($order)
-    {
-        $entriesAsStrings = [];
-        foreach ($order->getProducts() as $item) {
-            $name = $item["product_name"];
-            $quantity = intval($item["product_quantity"]);
-            $unit = "шт";
-            $entryString = $name . " " . $quantity . " " . $unit . ".";
-            array_push($entriesAsStrings, $entryString);
-        }
-        return join(" | ", $entriesAsStrings);
-    }
-
     /**
      * @return bool
      */
     private function isModuleNeedsToBeConfigured()
     {
-        $username = Configuration::get(RCallerConstants::USERNAME_CONFIG_KEY);
-        $password = Configuration::get(RCallerConstants::PASSWORD_CONFIG_KEY);
+        $credentialsManager = PrestaShopAdaptedIOC::getIOC()->getCredentialsManager();
 
-        return $username === self::CONFIG_PLACE_HOLDER || $password === self::CONFIG_PLACE_HOLDER;
+        $username = $credentialsManager->getUserName();
+        $password = $credentialsManager->getPassword();
+
+        return $username === RCallerConstants::OPTION_PLACE_HOLDER || $password === RCallerConstants::OPTION_PLACE_HOLDER;
     }
 
-    private function processResponseCode($httpCode)
+    /**
+     * @return bool
+     */
+    private function subscribePlaceOrderEvent()
     {
-        if ($httpCode == 403) {
-            $message = "You have negative balance, so the request to RCaller was not sent";
-            PrestaShopLogger::addLog($message, 3);
-            Tools::error_log($message);
-        }
+        return $this->registerHook(self::PLACE_ORDER_HOOK_NAME);
     }
 
 
