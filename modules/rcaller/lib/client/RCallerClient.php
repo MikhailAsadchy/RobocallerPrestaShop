@@ -35,9 +35,9 @@ class RCallerClient
         $this->rCallerOrderDtoBuilder = $rCallerOrderDtoBuilder;
     }
 
-    public function sendOrderToRCaller($total, $entries, $addressLine, $phone, $customerName, $currency)
+    public function sendOrderToRCaller($externalOrderId, $total, $entries, $addressLine, $phone, $customerName, $currency)
     {
-        $data = $this->rCallerOrderDtoBuilder->buildOrderDto($total,
+        $data = $this->rCallerOrderDtoBuilder->buildOrderDto($externalOrderId, $total,
             $entries, $addressLine, $phone, $customerName, $currency);
         $this->sendOrderToRCallerInternal($data);
     }
@@ -178,12 +178,11 @@ class RCallerClient
     {
         $customerName = $data["customerName"];
         $isEmpty = empty($customerName);
-        if ($isEmpty) {
-            $validationResult->addError("customerName", "customerName field should not be empty");
-        }
-        $length = strlen($customerName);
-        if ($length > 255) {
-            $validationResult->addError("customerName", "customerName field length should be 1-255");
+        if (!$isEmpty) {
+            $length = strlen($customerName);
+            if ($length > 255) {
+                $validationResult->addError("customerName", "customerName field length should be 1-255");
+            }
         }
     }
 
@@ -195,13 +194,13 @@ class RCallerClient
     {
         $customerAddress = $data["customerAddress"];
         $isEmpty = empty($customerAddress);
-        if ($isEmpty) {
-            $validationResult->addError("customerAddress", "customerAddress field should not be empty");
+        if (!$isEmpty) {
+            $length = strlen($customerAddress);
+            if ($length > 255) {
+                $validationResult->addError("customerAddress", "customerAddress field length should be 1-255");
+            }
         }
-        $length = strlen($customerAddress);
-        if ($length > 255) {
-            $validationResult->addError("customerAddress", "customerAddress field length should be 1-255");
-        }
+
     }
 
     /**
@@ -249,6 +248,7 @@ class RCallerClient
         $validationResult = new ValidationResult();
         // todo[Mikhail_Asadchy] comment out during pre-prod testing
 //        $this->validateCustomerPhone($data, $validationResult);
+        $this->validateExternalIdField($data, $validationResult);
         $this->validatePrice($data, $validationResult);
         $this->validateEntriesField($data, $validationResult);
         $this->validateCustomerAddressField($data, $validationResult);
@@ -262,6 +262,23 @@ class RCallerClient
         $this->processRequestBody($data);
         $validationResult = $this->validateRequestBody($data);
         return $validationResult;
+    }
+
+    /**
+     * @param $data
+     * @param $validationResult ValidationResult
+     */
+    private function validateExternalIdField($data, $validationResult)
+    {
+        $externalId = $data["externalId"];
+        $isEmpty = empty($externalId);
+        if (!$isEmpty) {
+            $length = strlen($externalId);
+            if ($length > 255) {
+                $validationResult->addError("externalId", "externalId field length should be 1-255");
+            }
+        }
+
     }
 }
 

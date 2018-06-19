@@ -20,19 +20,42 @@ class RCallerOrderDtoBuilder
         $this->entryAsStringFormatter = $entryAsStringFormatter;
     }
 
-    public function buildOrderDto($price, $entries, $customerAddress, $customerPhone, $customerName, $priceCurrency)
+    public function buildOrderDto($externalOrderId, $price, $entries, $customerAddress, $customerPhone, $customerName, $priceCurrency)
     {
         $entriesAsString = $this->entryAsStringFormatter->getEntriesAsString($entries);
 
         $data = array(
             'price' => $price,
             'entries' => $entriesAsString,
-            'customerAddress' => $customerAddress,
             'customerPhone' => $customerPhone,
-            'customerName' => $customerName,
             'priceCurrency' => $priceCurrency,
             'channel' => $this->channelNameProvider->getChannelName());
+        $data = $this->addOptionalFields($data, $externalOrderId, $customerAddress, $customerName);
         return $data;
     }
+
+    private function addOptionalFields($data, $externalOrderId, $customerAddress, $customerName)
+    {
+        $data = $this->addOptionalField($data, 'externalOrderId', $externalOrderId);
+        $data = $this->addOptionalField($data, 'customerAddress', $customerAddress);
+        $data = $this->addOptionalField($data, 'customerName', $customerName);
+        return $data;
+    }
+
+    /**
+     * @param $data
+     * @param $name
+     * @param $value
+     * @return mixed
+     */
+    private function addOptionalField($data, $name, $value)
+    {
+        if (!empty($value)) {
+            $data[$name] = $value;
+        }
+
+        return $data;
+    }
+
 }
 

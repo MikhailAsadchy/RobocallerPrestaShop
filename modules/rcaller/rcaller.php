@@ -56,6 +56,7 @@ class rcaller extends Module
         $order = new Order($orderId);
         $address = $this->resolveAddress($order);
 
+        $externalOrderId = $order->id;
         $totals = $order->getOrdersTotalPaid();
         $entries = $order->getProducts();
         $addressLine = $address->address1;
@@ -65,7 +66,7 @@ class rcaller extends Module
 
         $ioc = PrestaShopAdaptedIOC::getIOC();
         $rCallerClient = $ioc->getRCallerClient();
-        $rCallerClient->sendOrderToRCaller($totals, $entries, $addressLine, $phone, $customerName, $currency);
+        $rCallerClient->sendOrderToRCaller($externalOrderId, $totals, $entries, $addressLine, $phone, $customerName, $currency);
     }
 
     public function uninstall()
